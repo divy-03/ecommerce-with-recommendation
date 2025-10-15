@@ -1,36 +1,234 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ShopSmart - AI-Powered E-Commerce Recommendation System
+
+An intelligent e-commerce platform that uses hybrid recommendation algorithms and AI to provide personalized product suggestions with human-readable explanations.
+
+## Features
+
+**Smart Recommendation Engine**
+
+- Content-Based Filtering: Analyzes product attributes, categories, tags, and price ranges
+- Collaborative Filtering: Learns from users with similar shopping patterns
+- Hybrid System: Combines both approaches for optimal recommendations
+- AI-Powered Explanations: Uses Google Gemini to explain why each product is recommended
+
+**User Experience**
+
+- Beautiful, modern UI with Tailwind CSS
+- Persistent likes and favorites
+- Real-time interaction tracking (views, clicks, likes)
+- Activity dashboard with statistics
+- Category-based product filtering
+- Match percentage badges showing recommendation confidence
+
+**Performance \& Scalability**
+
+- Batch AI explanation generation
+- Optimized database queries with Prisma
+- Server-side rendering with Next.js 14
+
+
+## Tech Stack
+
+**Frontend**
+
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS
+- React Hooks
+
+**Backend**
+
+- Next.js API Routes
+- Prisma ORM
+- PostgreSQL (Neon)
+- NextAuth.js for authentication
+
+**AI \& Caching**
+
+- Google Gemini API for explanations
+- In-memory cache fallback
+
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 18+ installed
+- PostgreSQL database (local or cloud)
+- Gemini API key from Google AI Studio
+- Git
+
+
+### Installation
+
+Clone the repository:
+
+```
+git clone https://github.com/yourusername/ecommerce-recommender.git
+cd ecommerce-recommender
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Install dependencies:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set up environment variables by creating a .env file:
 
-## Learn More
+```
+DATABASE_URL="postgresql://user:password@localhost:5432/ecommerce_db"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-generated-with-openssl"
+GEMINI_API_KEY="your-gemini-api-key"
+```
 
-To learn more about Next.js, take a look at the following resources:
+Generate NextAuth secret:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+openssl rand -base64 32
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Initialize the database:
 
-## Deploy on Vercel
+```
+npx prisma generate
+npx prisma db push
+npx tsx prisma/seed.ts
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Run the development server:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+npm run dev
+```
+
+Open http://localhost:3000 in your browser.
+
+## Project Structure
+
+```
+ecommerce-recommender/
+├── src/
+│   ├── app/                    # Next.js App Router pages
+│   │   ├── api/               # API routes
+│   │   │   ├── auth/          # Authentication endpoints
+│   │   │   ├── products/      # Product CRUD
+│   │   │   ├── interactions/  # User tracking
+│   │   │   ├── recommendations/ # Recommendation engine API
+│   │   │   ├── cache/         # Cache management
+│   │   │   └── stats/         # User statistics
+│   │   ├── products/          # Product listing page
+│   │   ├── dashboard/         # Personalized recommendations
+│   │   └── auth/              # Authentication pages
+│   ├── components/            # Reusable React components
+│   │   ├── ProductCard.tsx
+│   │   ├── StatsPanel.tsx
+│   │   ├── Header.tsx
+│   │   └── AuthForm.tsx
+│   └── lib/                   # Core business logic
+│       ├── recommendation/    # Recommendation algorithms
+│       │   ├── contentBased.ts
+│       │   ├── collaborative.ts
+│       │   └── hybridEngine.ts
+│       ├── ai/                # AI integration
+│       │   ├── gemini.ts
+│       │   └── explanationGenerator.ts
+│       ├── cache/             # Caching layer
+│       │   ├── redis.ts
+│       │   └── cacheManager.ts
+│       ├── prisma.ts
+│       └── auth.ts
+└── prisma/
+    ├── schema.prisma          # Database schema
+    └── seed.ts                # Seed data with 100+ products
+```
+
+
+## How It Works
+
+**Recommendation Algorithm**
+
+The system uses a hybrid approach combining multiple strategies:
+
+Content-Based Filtering (60% weight):
+
+- Analyzes user's browsing history
+- Matches product categories, tags, and price ranges
+- Calculates similarity scores based on preferences
+
+Collaborative Filtering (40% weight):
+
+- Finds users with similar shopping patterns using Jaccard similarity
+- Recommends products liked by similar users
+- Weights recommendations by user similarity and interaction type
+
+The hybrid engine combines both scores to generate a final recommendation list with match percentages.
+
+**AI Explanations**
+
+Each recommendation includes a personalized explanation generated by Google Gemini that:
+
+- Analyzes user's shopping behavior
+- Identifies matching patterns between user preferences and product features
+- Generates natural language explanations in 2-3 sentences
+
+
+## Database Schema
+
+**User**: Stores user accounts with encrypted passwords
+**Product**: 100+ products across Electronics, Furniture, and Accessories categories
+**UserInteraction**: Tracks all user actions (view, click, like, purchase)
+**UserPreference**: Stores user preferences and settings (optional)
+
+## API Endpoints
+
+**Authentication**
+
+- POST /api/auth/signup - Create new account
+- POST /api/auth/signin - Sign in
+- POST /api/auth/signout - Sign out
+
+**Products**
+
+- GET /api/products - List all products with optional category filter
+- POST /api/products - Create new product (admin)
+
+**Interactions**
+
+- POST /api/interactions - Track user interaction
+- GET /api/interactions - Get user's interaction history
+- GET /api/interactions/check - Check if product is liked
+- POST /api/interactions/unlike - Remove like from product
+
+**Recommendations**
+
+- GET /api/recommendations - Get personalized recommendations
+- POST /api/recommendations/refresh - Force refresh recommendations
+
+**Statistics**
+
+- GET /api/stats - Get user activity statistics
+
+**Cache**
+
+- POST /api/cache/clear - Clear user's cache
+- GET /api/cache/status - Check cache and AI status
+
+
+## Testing Accounts
+
+After seeding, use these test accounts:
+
+- test@example.com / password123
+- john@example.com / password123
+- jane@example.com / password123
+
+
+## Demo
+
+Live Demo: https://your-app.vercel.app
+
+Demo Video: Add a link to a walkthrough video if available
+
+Built with passion by Divy Pathak
