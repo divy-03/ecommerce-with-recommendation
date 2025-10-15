@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { formatPrice } from '@/lib/utils';
@@ -22,6 +22,7 @@ interface ProductCardProps {
 export default function ProductCard({ product }: ProductCardProps) {
   const { data: session } = useSession();
   const [liked, setLiked] = useState(false);
+  const [tracked, setTracked] = useState(false);
 
   const trackInteraction = async (type: string) => {
     if (!session) return;
@@ -40,6 +41,14 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   };
 
+  // Track view when component mounts
+  useEffect(() => {
+    if (session && !tracked) {
+      trackInteraction('view');
+      setTracked(true);
+    }
+  }, [session, tracked]);
+
   const handleLike = async () => {
     setLiked(!liked);
     await trackInteraction('like');
@@ -50,10 +59,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <div
-      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
-      onMouseEnter={() => trackInteraction('view')}
-    >
+    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
       <div className="relative h-48 bg-gray-200">
         <Image
           src={product.imageUrl}
@@ -72,7 +78,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           {session && (
             <button
               onClick={handleLike}
-              className="text-red-500 hover:text-red-600"
+              className="text-2xl hover:scale-110 transition-transform"
             >
               {liked ? '❤️' : '🤍'}
             </button>
@@ -113,3 +119,4 @@ export default function ProductCard({ product }: ProductCardProps) {
     </div>
   );
 }
+
