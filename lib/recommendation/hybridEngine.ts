@@ -1,6 +1,7 @@
 
 import { ContentBasedRecommender } from './contentBased';
 import { CollaborativeFilteringRecommender } from './collaborative';
+import { explanationGenerator } from '../ai/explanationGenerator';
 import prisma from '../prisma';
 
 export interface RecommendationWithDetails {
@@ -82,8 +83,8 @@ export class HybridRecommendationEngine {
       const sortedRecommendations = Array.from(combinedScores.entries())
         .map(([productId, { score, method }]) => ({
           productId,
-          score,
-          method: method as any,
+          score: Math.min(100, score), // Cap at 100
+          method: method as 'collaborative' | 'content-based' | 'hybrid' | 'popular',
         }))
         .sort((a, b) => b.score - a.score)
         .slice(0, limit);
@@ -100,7 +101,9 @@ export class HybridRecommendationEngine {
 
       const finalRecommendations = sortedRecommendations
         .map((rec) => ({
-          ...rec,
+          productId: rec.productId,
+          score: rec.score,
+          method: rec.method,
           product: productMap.get(rec.productId),
         }))
         .filter(rec => rec.product !== undefined);
@@ -166,9 +169,47 @@ export class HybridRecommendationEngine {
   }
 
   /**
-   * Get explanation for why a product was recommended
+   * Get explanation for why a product was recommended (AI-powered)
    */
   async getRecommendationExplanation(
+    userId: string,
+    productId: string,
+    method: string,
+    score: number
+  ): Promise<string> {
+    try {
+      // Get product details
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+      });
+
+      if (!product) {
+        return 'This product matches your interests.';
+      }
+
+      // Generate AI explanation
+      const explanation = await explanationGenerator.generateExplanation({
+        userId,
+        productId,
+        productName: product.name,
+        productCategory: product.category,
+        productPrice: product.price,
+        productTags: product.tags,
+        recommendationMethod: method,
+        recommendationScore: score,
+      });
+
+      return explanation;
+    } catch (error) {
+      console.error('Error generating explanation:', error);
+      return this.generateFallbackExplanation(userId, productId);
+    }
+  }
+
+  /**
+   * Fallback explanation without AI
+   */
+  private async generateFallbackExplanation(
     userId: string,
     productId: string
   ): Promise<string> {
@@ -187,7 +228,7 @@ export class HybridRecommendationEngine {
       });
 
       if (!product) {
-        return 'This product matches your interests.';
+        return 'This product is recommended based on your shopping preferences.';
       }
 
       // Build explanation based on user history
@@ -225,11 +266,91 @@ export class HybridRecommendationEngine {
         return 'This is a popular product that matches your browsing patterns.';
       }
 
-      return `Recommended because ${reasons.join(', ')}.`;
+      return `We recommend this because ${reasons.join(', ')}.`;
     } catch (error) {
-      console.error('Error generating explanation:', error);
-      return 'This product matches your interests.';
+      console.error('Error generating fallback explanation:', error);
+      return 'This product matches your interests based on your shopping behavior.';
     }
   }
+
+  /**
+   * Batch generate recommendations with explanations
+   */
+  async getRecommendationsWithExplanations(
+    userId: string,
+    limit: number = 10
+  ): Promise<Array<RecommendationWithDetails & { explanation: string }>> {
+    try {
+      // Get base recommendations
+      const recommendations = await this.getRecommendations(userId, limit);
+
+      // Generate explanations in parallel (batched)
+      const recommendationsWithExplanations = await Promise.all(
+        recommendations.map(async (rec) => {
+          const explanation = await this.getRecommendationExplanation(
+            userId,
+            rec.productId,
+            rec.method,
+            rec.score
+          );
+          
+          return {
+            ...rec,
+            explanation,
+          };
+        })
+      );
+
+      return recommendationsWithExplanations;
+    } catch (error) {
+      console.error('Error generating recommendations with explanations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recommendation statistics for a user
+   */
+  async getRecommendationStats(userId: string): Promise<{
+    totalRecommendations: number;
+    byMethod: Record<string, number>;
+    averageScore: number;
+  }> {
+    try {
+      const recommendations = await this.getRecommendations(userId, 20);
+
+      const stats = {
+        totalRecommendations: recommendations.length,
+        byMethod: recommendations.reduce((acc, rec) => {
+          acc[rec.method] = (acc[rec.method] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        averageScore:
+          recommendations.reduce((sum, rec) => sum + rec.score, 0) /
+          recommendations.length || 0,
+      };
+
+      return stats;
+    } catch (error) {
+      console.error('Error getting recommendation stats:', error);
+      return {
+        totalRecommendations: 0,
+        byMethod: {},
+        averageScore: 0,
+      };
+    }
+  }
+
+  /**
+   * Refresh recommendations for a user (clears cache)
+   */
+  async refreshRecommendations(userId: string, limit: number = 10): Promise<RecommendationWithDetails[]> {
+    console.log(`Refreshing recommendations for user ${userId}`);
+    // This will bypass any caching and generate fresh recommendations
+    return this.getRecommendations(userId, limit);
+  }
 }
+
+// Export singleton instance
+export const hybridEngine = new HybridRecommendationEngine();
 
