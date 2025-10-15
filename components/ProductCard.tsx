@@ -3,7 +3,6 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import Image from 'next/image';
 import { formatPrice } from '@/lib/utils';
 
 interface Product {
@@ -33,8 +32,30 @@ export default function ProductCard({
 }: ProductCardProps) {
   const { data: session } = useSession();
   const [liked, setLiked] = useState(false);
+  const [loadingLike, setLoadingLike] = useState(false);
   const [tracked, setTracked] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+
+  // Check if product is liked on mount
+  useEffect(() => {
+    if (session?.user?.id) {
+      checkIfLiked();
+    }
+  }, [session?.user?.id, product.id]);
+
+  const checkIfLiked = async () => {
+    if (!session?.user?.id) return;
+    
+    try {
+      const res = await fetch(`/api/interactions/check?productId=${product.id}&type=like`);
+      if (res.ok) {
+        const data = await res.json();
+        setLiked(data.exists);
+      }
+    } catch (error) {
+      console.error('Error checking like status:', error);
+    }
+  };
 
   const trackInteraction = async (type: string) => {
     if (!session) return;
@@ -63,8 +84,38 @@ export default function ProductCard({
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setLiked(!liked);
-    await trackInteraction('like');
+    
+    if (!session || loadingLike) return;
+
+    setLoadingLike(true);
+    const newLikedState = !liked;
+    setLiked(newLikedState);
+
+    try {
+      if (newLikedState) {
+        await fetch('/api/interactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: product.id,
+            interactionType: 'like',
+          }),
+        });
+      } else {
+        await fetch('/api/interactions/unlike', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: product.id,
+          }),
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      setLiked(!newLikedState);
+    } finally {
+      setLoadingLike(false);
+    }
   };
 
   const handleClick = async () => {
@@ -72,11 +123,11 @@ export default function ProductCard({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 relative group">
+    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow relative">
       {/* Recommendation Badge */}
       {isRecommendation && recommendationScore !== undefined && (
-        <div className="absolute top-3 right-3 z-20">
-          <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+        <div className="absolute top-2 right-2 z-10">
+          <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
             </svg>
@@ -85,24 +136,13 @@ export default function ProductCard({
         </div>
       )}
 
-      {/* Product Image */}
-      <div className="relative h-48 bg-gray-100 overflow-hidden">
-        <Image
+      {/* Product Image - Simple img tag */}
+      <div className="relative h-48 bg-gray-200">
+        <img
           src={product.imageUrl}
           alt={product.name}
-          fill
-          className="object-cover group-hover:scale-110 transition-transform duration-300"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {/* Quick Action Overlay */}
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
-          <button
-            onClick={handleClick}
-            className="opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 bg-white text-gray-900 px-4 py-2 rounded-lg font-medium shadow-lg hover:bg-gray-100"
-          >
-            Quick View
-          </button>
-        </div>
       </div>
 
       {/* Product Details */}
@@ -114,14 +154,15 @@ export default function ProductCard({
           {session && (
             <button
               onClick={handleLike}
-              className="text-2xl hover:scale-110 transition-transform ml-2 flex-shrink-0"
+              disabled={loadingLike}
+              className={`text-2xl hover:scale-110 transition-transform ml-2 flex-shrink-0 ${loadingLike ? 'opacity-50' : ''}`}
             >
               {liked ? '❤️' : '🤍'}
             </button>
           )}
         </div>
 
-        <p className="text-sm text-gray-600 mb-3 line-clamp-2 min-h-[40px]">
+        <p className="text-sm text-gray-600 mb-3 line-clamp-2">
           {product.description}
         </p>
 
@@ -129,17 +170,17 @@ export default function ProductCard({
           <span className="text-xs bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full font-medium">
             {product.category}
           </span>
-          <span className="text-xl font-bold text-gray-900">
+          <span className="text-lg font-bold text-gray-900">
             {formatPrice(product.price)}
           </span>
         </div>
 
         {/* Tags */}
-        <div className="flex flex-wrap gap-1.5 mb-3 min-h-[28px]">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           {product.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded"
+              className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
             >
               {tag}
             </span>
@@ -205,7 +246,7 @@ export default function ProductCard({
         {/* Action Button */}
         <button
           onClick={handleClick}
-          className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium mt-3"
+          className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors"
         >
           View Details
         </button>
