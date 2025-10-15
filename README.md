@@ -227,8 +227,8 @@ After seeding, use these test accounts:
 
 ## Demo
 
-Live Demo: https://your-app.vercel.app
+Live Demo: https://ecommerce-with-recommendation.vercel.app/
 
-Demo Video: Add a link to a walkthrough video if available
+Demo Video: [Drive](https://drive.google.com/file/d/1h0OMURVDwqu3GQmm1JIuJd4rJ9nVWy8c/view?usp=sharing)
 
 Built with passion by Divy Pathak
